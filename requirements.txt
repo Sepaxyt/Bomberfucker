@@ -1,5 +1,7 @@
-python-telegram-bot==20.3
+# ============================
+# FILE 2: requirements.txt
+# ============================
+
+python-telegram-bot==20.7
 aiohttp==3.9.1
-flask==3.0.0
-httpcore==0.17.3
-httpx==0.24.1
+asyncio==3.4.3
